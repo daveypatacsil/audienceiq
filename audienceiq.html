@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AudienceIQ — Event Report Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ── Reset & Base ──────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #F8F6F0;
+  color: #1A1A1A;
+  min-height: 100vh;
+}
+
+/* ── Upload Screen ─────────────────────────────────────────────── */
+#screen-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 40px 20px;
+}
+
+.upload-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 48px;
+}
+.upload-logo .io-badge {
+  width: 38px; height: 38px;
+  border: 2px solid #1A1A1A;
+  display: flex; align-items: center; justify-content: center;
+  font-family: Georgia, serif; font-size: 13px; font-weight: bold;
+}
+.upload-logo .brand-text {
+  font-size: 12px;
+  color: #888880;
+  letter-spacing: 0.5px;
+}
+
+.upload-card {
+  background: white;
+  padding: 48px;
+  max-width: 560px;
+  width: 100%;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+}
+
+.upload-card h1 {
+  font-family: Georgia, serif;
+  font-size: 27px;
+  font-weight: normal;
+  color: #1A1A1A;
+  line-height: 1.3;
+  margin-bottom: 10px;
+}
+.upload-card h1 em { color: #C84B2F; font-style: italic; }
+
+.upload-card .sub {
+  font-size: 13px;
+  color: #888880;
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+
+.drop-zone {
+  border: 2px dashed #D8D6D0;
+  padding: 40px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 24px;
+  position: relative;
+}
+.drop-zone:hover, .drop-zone.dragging {
+  border-color: #C84B2F;
+  background: #FFF9F7;
+}
+.drop-zone input[type=file] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+.drop-icon { font-size: 30px; margin-bottom: 10px; }
+.drop-label { font-size: 15px; font-weight: 600; color: #1A1A1A; margin-bottom: 4px; }
+.drop-hint  { font-size: 12px; color: #888880; }
+
+.event-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.field label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  color: #888880;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 6px;
+}
+.field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #D8D6D0;
+  font-size: 13px;
+  color: #1A1A1A;
+  background: #FAFAF8;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.field input:focus { border-color: #C84B2F; }
+
+.btn-primary {
+  width: 100%;
+  padding: 14px;
+  background: #C84B2F;
+  color: white;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-primary:hover:not(:disabled) { background: #b03f26; }
+.btn-primary:disabled { background: #D8D6D0; cursor: not-allowed; }
+
+.sample-link {
+  text-align: center;
+  margin-top: 14px;
+  font-size: 12px;
+  color: #888880;
+}
+.sample-link a { color: #C84B2F; text-decoration: none; }
+.sample-link a:hover { text-decoration: underline; }
+
+/* ── Processing Screen ─────────────────────────────────────────── */
+#screen-processing {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  text-align: center;
+  padding: 40px;
+}
+.spinner {
+  width: 44px; height: 44px;
+  border: 3px solid #D8D6D0;
+  border-top-color: #C84B2F;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 24px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.processing-msg { font-family: Georgia, serif; font-size: 20px; color: #1A1A1A; margin-bottom: 8px; }
+.processing-sub { font-size: 13px; color: #888880; }
+
+/* ── Dashboard Screen ──────────────────────────────────────────── */
+#screen-dashboard { display: none; }
+
+.dash-topbar { height: 7px; background: #C84B2F; }
+
+.dash-header {
+  background: white;
+  padding: 24px 48px;
+  border-bottom: 1px solid #D8D6D0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.dash-header-left { display: flex; align-items: center; gap: 16px; }
+.dash-header .io-badge {
+  width: 36px; height: 36px;
+  border: 1.5px solid #1A1A1A;
+  display: flex; align-items: center; justify-content: center;
+  font-family: Georgia, serif; font-size: 12px; font-weight: bold;
+  flex-shrink: 0;
+}
+.brand-label { font-size: 10px; color: #888880; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 3px; }
+.event-title { font-family: Georgia, serif; font-size: 20px; color: #1A1A1A; }
+.event-meta  { font-size: 12px; color: #888880; margin-top: 2px; }
+
+.dash-header-right { display: flex; gap: 10px; align-items: center; }
+.btn-outline {
+  padding: 9px 18px;
+  background: transparent;
+  color: #888880;
+  border: 1px solid #D8D6D0;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-outline:hover { border-color: #1A1A1A; color: #1A1A1A; }
+.btn-dark {
+  padding: 9px 18px;
+  background: #1A1A1A;
+  color: white;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-dark:hover { background: #333; }
+
+.dash-body { padding: 36px 48px; }
+
+/* Section labels */
+.section-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #C84B2F;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #D8D6D0;
+}
+
+/* KPI strip */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 40px;
+}
+.kpi-card {
+  background: white;
+  padding: 22px 24px;
+  border-top: 3px solid #D8D6D0;
+}
+.kpi-card.c1 { border-color: #C84B2F; }
+.kpi-card.c2 { border-color: #2D7D7A; }
+.kpi-card.c3 { border-color: #C9A84C; }
+.kpi-card.c4 { border-color: #4A5C3A; }
+.kpi-val   { font-family: Georgia, serif; font-size: 38px; color: #1A1A1A; line-height: 1; margin-bottom: 6px; }
+.kpi-label { font-size: 10px; color: #888880; text-transform: uppercase; letter-spacing: 0.8px; }
+.kpi-sub   { font-size: 12px; color: #888880; margin-top: 4px; }
+
+/* Highlights */
+.highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 40px;
+}
+.highlight-card {
+  background: white;
+  padding: 22px 24px;
+  border-left: 3px solid #C84B2F;
+}
+.highlight-card.teal { border-color: #2D7D7A; }
+.highlight-card.gold { border-color: #C9A84C; }
+.highlight-stat { font-family: Georgia, serif; font-size: 32px; color: #1A1A1A; margin-bottom: 6px; }
+.highlight-label { font-size: 13px; color: #888880; line-height: 1.5; }
+
+/* Charts row */
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.5fr;
+  gap: 20px;
+  margin-bottom: 32px;
+}
+.chart-card {
+  background: white;
+  padding: 24px;
+}
+.chart-card h3 {
+  font-size: 10px;
+  font-weight: 700;
+  color: #888880;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+}
+.chart-wrap { position: relative; height: 210px; }
+
+/* Bottom row */
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 20px;
+  margin-bottom: 40px;
+}
+
+/* Tables */
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table thead th {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #888880;
+  letter-spacing: 0.8px;
+  padding: 8px 12px;
+  border-bottom: 2px solid #D8D6D0;
+  text-align: left;
+  font-weight: 700;
+}
+.data-table tbody tr:hover { background: #F8F6F0; }
+.data-table tbody td {
+  padding: 9px 12px;
+  border-bottom: 1px solid #F0EEE8;
+  color: #1A1A1A;
+}
+.rank-num { color: #D8D6D0; font-size: 11px; width: 20px; }
+.bar-bg   { background: #F0EEE8; border-radius: 2px; height: 4px; margin-top: 5px; }
+.bar-fill { height: 4px; border-radius: 2px; background: #C84B2F; }
+
+/* Footer */
+.dash-footer {
+  padding: 18px 48px;
+  border-top: 1px solid #D8D6D0;
+  font-size: 11px;
+  color: #888880;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+}
+
+/* ── Print / PDF ───────────────────────────────────────────────── */
+@media print {
+  #screen-upload, #screen-processing { display: none !important; }
+  #screen-dashboard { display: block !important; }
+  .dash-header-right { display: none !important; }
+  body { background: white; }
+  .dash-body { padding: 20px 32px; }
+  .dash-header { padding: 16px 32px; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .chart-card, .kpi-card, .highlight-card { box-shadow: none !important; }
+}
+
+@media (max-width: 800px) {
+  .kpi-grid     { grid-template-columns: 1fr 1fr; }
+  .highlights-grid { grid-template-columns: 1fr; }
+  .charts-row   { grid-template-columns: 1fr; }
+  .bottom-row   { grid-template-columns: 1fr; }
+  .dash-body    { padding: 24px 20px; }
+  .dash-header  { padding: 20px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 1 — UPLOAD
+     ════════════════════════════════════════════════ -->
+<div id="screen-upload">
+  <div class="upload-logo">
+    <div class="io-badge">io</div>
+    <span class="brand-text">AudienceIQ · Davey Patacsil · Marketing & Communications Leader</span>
+  </div>
+
+  <div class="upload-card">
+    <h1>AudienceIQ — <em>event report generator.</em></h1>
+    <p class="sub">
+      Upload your badge scan CSV from any tech event to generate a leadership-ready
+      audience summary — role breakdown, top companies, and key highlights in seconds.
+    </p>
+
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" accept=".csv" />
+      <div class="drop-icon">📋</div>
+      <div class="drop-label" id="drop-label">Drop your CSV here</div>
+      <div class="drop-hint"  id="drop-hint">or click to browse · .csv files only</div>
+    </div>
+
+    <div class="event-fields">
+      <div class="field">
+        <label>Event Name</label>
+        <input type="text" id="event-name" placeholder="e.g. All Things Open 2025" />
+      </div>
+      <div class="field">
+        <label>Date / Location</label>
+        <input type="text" id="event-date" placeholder="e.g. Nov 2025 · Atlanta" />
+      </div>
+    </div>
+
+    <button class="btn-primary" id="btn-generate" disabled>Generate Leadership Report</button>
+
+    <div class="sample-link">
+      <a href="#" id="sample-download">Download sample CSV</a> to try it with example data
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 2 — PROCESSING
+     ════════════════════════════════════════════════ -->
+<div id="screen-processing">
+  <div class="spinner"></div>
+  <div class="processing-msg">Classifying contacts…</div>
+  <div class="processing-sub">Analyzing job titles and company data</div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 3 — DASHBOARD
+     ════════════════════════════════════════════════ -->
+<div id="screen-dashboard">
+
+  <div class="dash-topbar"></div>
+
+  <div class="dash-header">
+    <div class="dash-header-left">
+      <div class="io-badge">io</div>
+      <div>
+        <div class="brand-label">Davey Patacsil · Marketing & Communications Leader · Event Report</div>
+        <div class="event-title" id="dash-event-name">Event Report</div>
+        <div class="event-meta"  id="dash-event-meta"></div>
+      </div>
+    </div>
+    <div class="dash-header-right">
+      <button class="btn-outline" onclick="resetApp()">← New Report</button>
+      <button class="btn-dark"    onclick="window.print()">⬇ Save as PDF</button>
+    </div>
+  </div>
+
+  <div class="dash-body">
+
+    <!-- AT A GLANCE -->
+    <div class="section-label">— AT A GLANCE</div>
+    <div class="kpi-grid">
+      <div class="kpi-card c1">
+        <div class="kpi-val"   id="kpi-total">—</div>
+        <div class="kpi-label">Total Contacts</div>
+        <div class="kpi-sub"  id="kpi-countries-sub"></div>
+      </div>
+      <div class="kpi-card c2">
+        <div class="kpi-val"   id="kpi-companies">—</div>
+        <div class="kpi-label">Unique Companies</div>
+        <div class="kpi-sub"  id="kpi-top-company"></div>
+      </div>
+      <div class="kpi-card c3">
+        <div class="kpi-val"   id="kpi-technical">—</div>
+        <div class="kpi-label">Technical Audience</div>
+        <div class="kpi-sub">Engineering + DevOps + Data/AI</div>
+      </div>
+      <div class="kpi-card c4">
+        <div class="kpi-val"   id="kpi-decision">—</div>
+        <div class="kpi-label">Decision Makers</div>
+        <div class="kpi-sub">Senior + Executive level</div>
+      </div>
+    </div>
+
+    <!-- KEY HIGHLIGHTS -->
+    <div class="section-label">— KEY HIGHLIGHTS</div>
+    <div class="highlights-grid" id="highlights-grid"></div>
+
+    <!-- AUDIENCE BREAKDOWN -->
+    <div class="section-label">— AUDIENCE BREAKDOWN</div>
+    <div class="charts-row">
+      <div class="chart-card">
+        <h3>Role Distribution</h3>
+        <div class="chart-wrap"><canvas id="ch-roles"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Seniority Levels</h3>
+        <div class="chart-wrap"><canvas id="ch-seniority"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Top 8 Companies</h3>
+        <div class="chart-wrap"><canvas id="ch-companies"></canvas></div>
+      </div>
+    </div>
+
+    <!-- TABLES -->
+    <div class="section-label">— COMPANY & GEOGRAPHY BREAKDOWN</div>
+    <div class="bottom-row">
+      <div class="chart-card">
+        <h3 style="font-size:10px;font-weight:700;color:#888880;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">Top Companies</h3>
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Company</th><th>Contacts</th><th>Share</th></tr></thead>
+          <tbody id="tbl-companies"></tbody>
+        </table>
+      </div>
+      <div class="chart-card">
+        <h3 style="font-size:10px;font-weight:700;color:#888880;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">Countries Represented</h3>
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Country</th><th>Contacts</th></tr></thead>
+          <tbody id="tbl-countries"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /dash-body -->
+
+  <div class="dash-footer">
+    <span>Davey Patacsil · Marketing & Communications Leader · <span id="footer-event"></span></span>
+    <span id="footer-generated"></span>
+  </div>
+
+</div><!-- /screen-dashboard -->
+
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════
+let parsedRows   = null;
+let fileReady    = false;
+let chartInstances = {};
+
+// ════════════════════════════════════════════════════════════════
+// UPLOAD INTERACTIONS
+// ════════════════════════════════════════════════════════════════
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const btnGen    = document.getElementById('btn-generate');
+
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('dragging');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragging');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+btnGen.addEventListener('click', () => { if (parsedRows) generateReport(); });
+
+function handleFile(file) {
+  document.getElementById('drop-label').textContent = '✅  ' + file.name;
+  document.getElementById('drop-hint').textContent  =
+    (file.size / 1024).toFixed(1) + ' KB · Click "Generate" when ready';
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete: result => {
+      parsedRows = result.data;
+      fileReady  = true;
+      btnGen.disabled = false;
+    }
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+// SAMPLE CSV
+// ════════════════════════════════════════════════════════════════
+document.getElementById('sample-download').addEventListener('click', e => {
+  e.preventDefault();
+  const csv = [
+    'First Name,Last Name,Job Title,Company,Email,Country',
+    'Alex,Chen,Senior DevOps Engineer,Google,alex.chen@google.com,United States',
+    'Maria,Rodriguez,Principal SRE,Amazon Web Services,m.rodriguez@amazon.com,United States',
+    'James,Kim,CTO,FinTech Startup Co,james@fintechco.io,United States',
+    'Priya,Patel,Staff Software Engineer,Microsoft,priya.patel@microsoft.com,India',
+    'Liam,O\'Brien,DevOps Lead,Red Hat,l.obrien@redhat.com,United Kingdom',
+    'Yuki,Tanaka,Data Scientist,Sony,yuki.t@sony.co.jp,Japan',
+    'Carlos,Mendoza,VP of Engineering,Stripe,c.mendoza@stripe.com,United States',
+    'Sarah,Johnson,Platform Engineer,HashiCorp,s.johnson@hashicorp.com,United States',
+    'Wei,Liu,Machine Learning Engineer,Baidu,wei.liu@baidu.com,China',
+    'Aisha,Hassan,Kubernetes Architect,CNCF,a.hassan@cncf.io,Kenya',
+    'Tom,Williams,Software Developer,Accenture,t.williams@accenture.com,Australia',
+    'Nina,Müller,Security Engineer,SAP,n.muller@sap.com,Germany',
+    'Ravi,Sharma,Junior Frontend Developer,Infosys,ravi.s@infosys.com,India',
+    'Emma,Davis,Product Manager,Confluent,e.davis@confluent.io,United States',
+    'Daniel,Park,Site Reliability Engineer,Netflix,d.park@netflix.com,South Korea',
+    'Fatima,Al-Rashid,Chief Technology Officer,Gulf Tech,f.alrashid@gulftech.ae,UAE',
+    'Oliver,Smith,Backend Developer,ThoughtWorks,o.smith@thoughtworks.com,United Kingdom',
+    'Mei,Zhang,Cloud Engineer,Alibaba Cloud,mei.zhang@alibaba.com,China',
+    'Lucas,Ferrari,DevSecOps Engineer,Telecom Italia,l.ferrari@telecom.it,Italy',
+    'Amara,Osei,Platform Engineering Lead,MTN Group,a.osei@mtn.com,Ghana',
+    'Jordan,Lee,Software Engineer,Amazon Web Services,j.lee@amazon.com,United States',
+    'Fatou,Diallo,Director of Engineering,Orange,f.diallo@orange.com,France',
+    'Raj,Patel,Kubernetes Engineer,VMware,raj.p@vmware.com,United States',
+    'Anya,Petrov,Security Architect,CrowdStrike,a.petrov@crowdstrike.com,Germany',
+    'Ben,Nakamura,Senior Software Engineer,Google,b.nakamura@google.com,Japan',
+    'Claire,Martin,Head of DevOps,BNP Paribas,c.martin@bnp.com,France',
+    'Diego,Santos,Staff SRE,Nubank,d.santos@nubank.com,Brazil',
+    'Fatima,Ndiaye,ML Engineer,Jumia,f.ndiaye@jumia.com,Nigeria',
+    'Guo,Wei,Cloud Architect,Tencent,guo.wei@tencent.com,China',
+    'Hannah,Berg,DevOps Engineer,Spotify,h.berg@spotify.com,Sweden',
+    'Ivan,Petrov,Principal Engineer,Yandex,i.petrov@yandex.ru,Russia',
+  ].join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'sample_event_badges.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ════════════════════════════════════════════════════════════════
+// COLUMN DETECTION
+// Maps flexible CSV headers to internal field names
+// ════════════════════════════════════════════════════════════════
+function detectColumns(headers) {
+  const h   = headers.map(s => s.toLowerCase().trim());
+  const find = (...kw) => {
+    const i = h.findIndex(col => kw.some(k => col.includes(k)));
+    return i >= 0 ? headers[i] : null;
+  };
+  return {
+    firstName: find('first name', 'first', 'fname', 'given name'),
+    lastName:  find('last name',  'last',  'lname', 'surname', 'family'),
+    fullName:  find('full name',  'name',  'contact name', 'attendee'),
+    title:     find('title', 'job title', 'role', 'position', 'function', 'designation'),
+    company:   find('company', 'organization', 'org', 'employer', 'account', 'affiliation'),
+    email:     find('email', 'e-mail', 'mail', 'address'),
+    country:   find('country', 'nation', 'location', 'region', 'territory'),
+    city:      find('city', 'town', 'metro'),
+  };
+}
+
+function getVal(row, col) {
+  if (!col) return '';
+  return (row[col] || '').toString().trim();
+}
+
+// ════════════════════════════════════════════════════════════════
+// CLASSIFIER  (ported from Apps Script _classifyLocally_)
+// ════════════════════════════════════════════════════════════════
+function classify(rawTitle) {
+  const tl = (rawTitle || '').toLowerCase();
+  if (!tl || tl === '-') return { category: 'Unknown', seniority: 'Unknown' };
+
+  // ── Seniority ─────────────────────────────────────────────────
+  let seniority = 'Mid';
+  const EXEC   = ['chief','cto','ceo','coo','cio','cfo','cpo','cso','cdo','president',
+                  'vp','svp','evp','vice president','director','head of',
+                  'managing director','general manager','founder','co-founder','partner'];
+  const SENIOR = ['senior','sr.','sr ','lead ','lead,','staff ','principal',
+                  'distinguished','fellow','architect',' iii',' iv'];
+  const JUNIOR = ['junior','jr.','jr ','associate ','intern','entry level',
+                  'entry-level','graduate','grad ','trainee','apprentice'];
+
+  if      (EXEC.some(w   => tl.includes(w))) seniority = 'Executive';
+  else if (SENIOR.some(w => tl.includes(w))) seniority = 'Senior';
+  else if (JUNIOR.some(w => tl.includes(w))) seniority = 'Junior';
+
+  // ── Category ──────────────────────────────────────────────────
+  let category = 'Unknown';
+
+  const LEADERSHIP  = ['chief','cto','ceo','coo','cio','cfo','cpo','cso','cdo',
+                       'president','vp ','vp,','vice president','svp','evp',
+                       'director','head of','managing director','general manager',
+                       'founder','co-founder'];
+  const DEVOPS      = ['devops','dev ops','sre','site reliability','platform engineer',
+                       'infrastructure engineer','cloud engineer','devsecops',
+                       'gitops','mlops','finops','release engineer','build engineer',
+                       'ci/cd','pipeline','kubernetes','k8s','terraform','ansible',
+                       'helm','docker','containerization'];
+  const DATA        = ['data scientist','data engineer','data analyst','data architect',
+                       'analytics engineer','machine learning','ml engineer',
+                       'ai engineer','artificial intelligence','deep learning',
+                       'nlp ','natural language','llm','research scientist',
+                       'applied scientist','bioinformatics','data warehouse','etl',
+                       'bi developer','business intelligence','databricks','spark'];
+  const SECURITY    = ['security engineer','security analyst','security architect',
+                       'cybersecurity','cyber security','infosec','information security',
+                       'penetration','pentest','red team','blue team','soc analyst',
+                       'vulnerability','threat intelligence','devsecops','iam engineer'];
+  const PRODUCT     = ['product manager','product owner','pm ','p.m.','program manager',
+                       'project manager','ux ','ui ','ux/ui','ui/ux','user experience',
+                       'user interface','interaction design','product design','design lead',
+                       'creative director'];
+  const ENGINEERING = ['engineer','developer','dev ','dev,','programmer','architect',
+                       'software','frontend','front-end','backend','back-end',
+                       'full stack','fullstack','full-stack','mobile developer',
+                       'ios developer','android developer','web developer',
+                       'embedded','firmware','qa ','qae','quality assurance',
+                       'test engineer','automation engineer','technical lead','tech lead'];
+  const OPS         = ['operations','scrum master','agile coach','delivery manager',
+                       'community manager','developer advocate','devrel',
+                       'developer relations','evangelist','technical writer',
+                       'documentation','support engineer','customer success',
+                       'solutions engineer','sales engineer','solutions architect',
+                       'marketing','recruiter'];
+
+  if      (LEADERSHIP.some(w  => tl.includes(w))) category = 'Leadership';
+  else if (DEVOPS.some(w      => tl.includes(w))) category = 'DevOps';
+  else if (DATA.some(w        => tl.includes(w))) category = 'Data/AI';
+  else if (SECURITY.some(w    => tl.includes(w))) category = 'Cybersecurity';
+  else if (PRODUCT.some(w     => tl.includes(w))) category = 'Product';
+  else if (ENGINEERING.some(w => tl.includes(w))) category = 'Engineering';
+  else if (OPS.some(w         => tl.includes(w))) category = 'Operations';
+
+  return { category, seniority };
+}
+
+// ════════════════════════════════════════════════════════════════
+// DATA PROCESSING
+// ════════════════════════════════════════════════════════════════
+function processRows(rows) {
+  if (!rows || rows.length === 0) return [];
+  const cols = detectColumns(Object.keys(rows[0]));
+
+  return rows.map(row => {
+    let first = getVal(row, cols.firstName);
+    let last  = getVal(row, cols.lastName);
+
+    // Fall back to splitting a full-name column
+    if (!first && !last && cols.fullName) {
+      const parts = getVal(row, cols.fullName).split(/\s+/);
+      first = parts[0] || '';
+      last  = parts.slice(1).join(' ');
+    }
+
+    const title   = getVal(row, cols.title);
+    const company = getVal(row, cols.company);
+    const email   = getVal(row, cols.email).toLowerCase();
+    const country = getVal(row, cols.country);
+
+    const { category, seniority } = classify(title);
+
+    return { first, last, title, company, email, country, category, seniority };
+  }).filter(r => r.first || r.last || r.email || r.company);
+}
+
+// ════════════════════════════════════════════════════════════════
+// GENERATE REPORT  (wires upload → processing → dashboard)
+// ════════════════════════════════════════════════════════════════
+function generateReport() {
+  if (!parsedRows) return;
+  showScreen('processing');
+  setTimeout(() => {
+    const contacts = processRows(parsedRows);
+    renderDashboard(contacts);
+    showScreen('dashboard');
+  }, 700);
+}
+
+// ════════════════════════════════════════════════════════════════
+// RENDER DASHBOARD
+// ════════════════════════════════════════════════════════════════
+function renderDashboard(contacts) {
+  const eventName = document.getElementById('event-name').value.trim() || 'Event Report';
+  const eventDate = document.getElementById('event-date').value.trim();
+  const total     = contacts.length;
+
+  // Header / footer
+  document.getElementById('dash-event-name').textContent  = eventName;
+  document.getElementById('dash-event-meta').textContent  = eventDate;
+  document.getElementById('footer-event').textContent     = eventName;
+  document.getElementById('footer-generated').textContent =
+    'Generated ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+  // ── Aggregations ────────────────────────────────────────────
+  const byCategory  = {};
+  const bySeniority = {};
+  const byCompany   = {};
+  const byCountry   = {};
+
+  contacts.forEach(c => {
+    inc(byCategory,  c.category  || 'Unknown');
+    inc(bySeniority, c.seniority || 'Unknown');
+    if (c.company) inc(byCompany, c.company);
+    if (c.country) inc(byCountry, c.country);
+  });
+
+  const topCompanies = sortDesc(byCompany);
+  const topCountries = sortDesc(byCountry);
+  const uniqueCompanies = Object.keys(byCompany).length;
+
+  const technical = (byCategory['Engineering'] || 0)
+                  + (byCategory['DevOps']       || 0)
+                  + (byCategory['Data/AI']      || 0);
+  const decision  = (bySeniority['Senior']    || 0)
+                  + (bySeniority['Executive']  || 0);
+
+  // ── KPIs ─────────────────────────────────────────────────────
+  setText('kpi-total',    total.toLocaleString());
+  setText('kpi-companies', uniqueCompanies.toLocaleString());
+  setText('kpi-technical', pct(technical, total));
+  setText('kpi-decision',  pct(decision, total));
+  setText('kpi-countries-sub', Object.keys(byCountry).length + ' countries represented');
+  setText('kpi-top-company', topCompanies[0] ? 'Top: ' + topCompanies[0][0] : '');
+
+  // ── Highlights ───────────────────────────────────────────────
+  renderHighlights(contacts, byCategory, bySeniority, topCompanies, total);
+
+  // ── Charts ───────────────────────────────────────────────────
+  const PALETTE = ['#C84B2F','#2D7D7A','#C9A84C','#4A5C3A','#5B7FBF','#8B5CF6','#DB7093','#20B2AA','#FF9800','#E91E63'];
+
+  // Destroy previous chart instances if re-generating
+  Object.values(chartInstances).forEach(c => c.destroy());
+  chartInstances = {};
+
+  // Role donut
+  const catRows = sortDesc(byCategory).filter(([k]) => k !== 'Unknown');
+  chartInstances['roles'] = makeChart('ch-roles', 'doughnut',
+    catRows.map(([k]) => k),
+    catRows.map(([,v]) => v),
+    PALETTE
+  );
+
+  // Seniority bar
+  const senOrder = ['Executive','Senior','Mid','Junior','Unknown'];
+  const senRows  = senOrder.filter(s => bySeniority[s]);
+  chartInstances['seniority'] = makeChart('ch-seniority', 'bar',
+    senRows,
+    senRows.map(s => bySeniority[s]),
+    PALETTE,
+    {
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { size: 11 } } },
+        y: { ticks: { font: { size: 11 } } }
+      }
+    }
+  );
+
+  // Top 8 companies bar
+  const top8 = topCompanies.slice(0, 8);
+  chartInstances['companies'] = makeChart('ch-companies', 'bar',
+    top8.map(([k]) => k),
+    top8.map(([,v]) => v),
+    PALETTE,
+    {
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { size: 11 } } },
+        y: { ticks: { font: { size: 10 } } }
+      }
+    }
+  );
+
+  // ── Tables ───────────────────────────────────────────────────
+  const maxComp = topCompanies[0] ? topCompanies[0][1] : 1;
+  const tblComp = document.getElementById('tbl-companies');
+  tblComp.innerHTML = '';
+  topCompanies.slice(0, 15).forEach(([name, count], i) => {
+    const w = Math.round(count / maxComp * 100);
+    tblComp.innerHTML += `
+      <tr>
+        <td class="rank-num">${i + 1}</td>
+        <td>${escHtml(name)}</td>
+        <td>
+          <strong>${count}</strong>
+          <div class="bar-bg"><div class="bar-fill" style="width:${w}%"></div></div>
+        </td>
+        <td style="color:#888880;font-size:11px">${pct(count, total)}</td>
+      </tr>`;
+  });
+
+  const tblCtry = document.getElementById('tbl-countries');
+  tblCtry.innerHTML = '';
+  topCountries.slice(0, 12).forEach(([name, count], i) => {
+    tblCtry.innerHTML += `
+      <tr>
+        <td class="rank-num">${i + 1}</td>
+        <td>${escHtml(name)}</td>
+        <td><strong>${count}</strong></td>
+      </tr>`;
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+// HIGHLIGHTS — auto-generated callout cards
+// ════════════════════════════════════════════════════════════════
+const NOTABLE = new Set([
+  'google','aws','amazon web services','amazon','microsoft','meta','facebook',
+  'apple','netflix','stripe','hashicorp','red hat','ibm','vmware','cisco',
+  'oracle','salesforce','github','atlassian','cloudflare','datadog','splunk',
+  'grafana','cncf','linux foundation','suse','canonical','palantir',
+  'snowflake','databricks','confluent','elastic','mongodb','twitter','x',
+  'linkedin','spotify','airbnb','lyft','uber','pinterest','square','twilio',
+]);
+
+function renderHighlights(contacts, byCategory, bySeniority, topCompanies, total) {
+  const grid  = document.getElementById('highlights-grid');
+  const items = [];
+
+  // 1 — Biggest single company
+  if (topCompanies.length > 0) {
+    const [co, n] = topCompanies[0];
+    items.push({
+      stat:  n,
+      label: `contacts from <strong>${escHtml(co)}</strong> — the most represented company at this event`,
+      color: 'rust'
+    });
+  }
+
+  // 2 — Notable / cloud company contacts
+  const notableCount = contacts.filter(c => NOTABLE.has((c.company || '').toLowerCase())).length;
+  if (notableCount > 0) {
+    items.push({
+      stat:  notableCount,
+      label: `contacts from major cloud providers, CNCF projects, and top-tier tech companies`,
+      color: 'teal'
+    });
+  }
+
+  // 3 — DevOps/SRE practitioners
+  const devopsCount = byCategory['DevOps'] || 0;
+  if (devopsCount > 0) {
+    items.push({
+      stat:  devopsCount,
+      label: `DevOps and SRE practitioners — a core audience for Intuit OSS projects`,
+      color: 'gold'
+    });
+  }
+
+  // Fallbacks if we don't have 3 yet
+  if (items.length < 3) {
+    const execCount = bySeniority['Executive'] || 0;
+    if (execCount > 0) items.push({
+      stat:  execCount,
+      label: 'C-level and VP-level executives collected — high-value leadership contacts',
+      color: 'teal'
+    });
+  }
+  if (items.length < 3) {
+    const engCount = byCategory['Engineering'] || 0;
+    items.push({
+      stat:  engCount,
+      label: 'software engineers and developers who build with open source tooling daily',
+      color: 'rust'
+    });
+  }
+  if (items.length < 3) {
+    const countryCount = Object.keys({}).length;
+    items.push({
+      stat:  contacts.length,
+      label: 'total contacts captured — ready to import into the DevRel master sheet',
+      color: 'gold'
+    });
+  }
+
+  grid.innerHTML = items.slice(0, 3).map(item => `
+    <div class="highlight-card ${item.color === 'teal' ? 'teal' : item.color === 'gold' ? 'gold' : ''}">
+      <div class="highlight-stat">${item.stat}</div>
+      <div class="highlight-label">${item.label}</div>
+    </div>
+  `).join('');
+}
+
+// ════════════════════════════════════════════════════════════════
+// CHART HELPER
+// ════════════════════════════════════════════════════════════════
+function makeChart(id, type, labels, values, palette, extraOpts) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return null;
+  return new Chart(ctx, {
+    type,
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: palette,
+        borderColor: type === 'bar' ? palette : '#fff',
+        borderWidth: type === 'bar' ? 0 : 2,
+      }]
+    },
+    options: Object.assign({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { font: { size: 10 }, boxWidth: 10, padding: 8 }
+        },
+        tooltip: {
+          callbacks: {
+            label: c => ' ' + (c.parsed.y ?? c.parsed.r ?? c.raw) + ' contacts'
+          }
+        }
+      }
+    }, extraOpts || {})
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+// UTILITIES
+// ════════════════════════════════════════════════════════════════
+function inc(obj, key) { obj[key] = (obj[key] || 0) + 1; }
+function sortDesc(obj) { return Object.entries(obj).sort((a, b) => b[1] - a[1]); }
+function pct(n, t)     { return t > 0 ? Math.round(n / t * 100) + '%' : '0%'; }
+function setText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+function escHtml(s)    { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function showScreen(name) {
+  ['upload','processing','dashboard'].forEach(s => {
+    const el = document.getElementById('screen-' + s);
+    if (!el) return;
+    if (s === 'processing') {
+      el.style.display = (s === name) ? 'flex' : 'none';
+    } else {
+      el.style.display = (s === name) ? 'block' : 'none';
+    }
+  });
+}
+
+function resetApp() {
+  parsedRows = null;
+  fileReady  = false;
+  btnGen.disabled = true;
+  fileInput.value = '';
+  document.getElementById('drop-label').textContent = 'Drop your CSV here';
+  document.getElementById('drop-hint').textContent  = 'or click to browse · .csv files only';
+  document.getElementById('event-name').value = '';
+  document.getElementById('event-date').value = '';
+  Object.values(chartInstances).forEach(c => c.destroy());
+  chartInstances = {};
+  showScreen('upload');
+}
+</script>
+</body>
+</html>
